@@ -135,7 +135,7 @@ SND_BOMBA = SND_EXPLOSION = SND_MUERTE = SND_ENEMIGO = None
 SND_VICTORIA = SND_PUERTA = SND_ITEM = None
 
 try:
-    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
     def _gen(freq, dur, vol=0.4, forma="cuadrada", decay=True):
         import array as arr
         sr = 44100; n = int(sr * dur / 1000)
@@ -153,16 +153,6 @@ try:
     SND_VICTORIA  = _gen(480, 700, 0.4, decay=False)
     SND_PUERTA    = _gen(540, 250, 0.4)
     SND_ITEM      = _gen(660, 200, 0.35)
-
-    # ── Música de fondo ─────────────────────────────────────────────────────
-    import os
-    _ruta_musica = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "mysterious_sewer_overture.mp3")
-    if os.path.exists(_ruta_musica):
-        pygame.mixer.set_num_channels(16)
-        pygame.mixer.music.load(_ruta_musica)
-        pygame.mixer.music.set_volume(0.35)
-        pygame.mixer.music.play(loops=-1)
 
     SONIDO_OK = True
 except Exception:
@@ -788,6 +778,22 @@ def dibujar_menu(t):
 estado_app = "menu"
 juego      = None
 opcion_menu = 0
+
+# ── Iniciar música directamente aquí, fuera del try/except de sonidos ──
+import os as _os
+_mp3 = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                     "mysterious_sewer_overture.mp3")
+if not _os.path.exists(_mp3):
+    _mp3 = _os.path.join(_os.getcwd(), "mysterious_sewer_overture.mp3")
+if _os.path.exists(_mp3):
+    try:
+        if not pygame.mixer.get_init():
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+        pygame.mixer.music.load(_mp3)
+        pygame.mixer.music.set_volume(0.4)
+        pygame.mixer.music.play(-1)
+    except Exception as e:
+        print(f"[MUSICA] Error al cargar: {e}")
 
 while True:
     t = pygame.time.get_ticks()
