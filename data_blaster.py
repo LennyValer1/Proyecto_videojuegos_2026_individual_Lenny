@@ -489,6 +489,75 @@ def dibujar_mapa(juego):
         pantalla.blit(t, t.get_rect(center=r.center))
 
 
+def _dibujar_pixel_art(grid, colores, ox, oy, ps):
+    """Dibuja una cuadrícula de pixel art. grid=lista de filas de ints, ps=tamaño de pixel."""
+    for gy, fila in enumerate(grid):
+        for gx, v in enumerate(fila):
+            if v == 0: continue
+            col = colores[v]
+            pantalla.fill(col, (ox + gx*ps, oy + gy*ps, ps, ps))
+
+
+def _dibujar_jugador(gx, gy, tiene_escudo, t):
+    """Sprite jugador estilo Bomberman — 8x10 pixels."""
+    # ps se calcula para que 8 pixels entren en el bloque con margen
+    ps  = max(2, (TAMANO_BLOQUE - 6) // 10)   # 10 filas de alto
+    ancho_sprite = ps * 8
+    alto_sprite  = ps * 10
+    ox = gx * TAMANO_BLOQUE + (TAMANO_BLOQUE - ancho_sprite) // 2
+    oy = gy * TAMANO_BLOQUE + ALTO_HUD + (TAMANO_BLOQUE - alto_sprite) // 2
+
+    col_cuerpo = DORADO    if tiene_escudo else VERDE_BIT
+    col_piel   = (180,255,160) if not tiene_escudo else (255,240,180)
+    col_visor  = CYAN
+    col_borde  = VERDE_OSCURO if not tiene_escudo else (180,140,0)
+
+    # 0=transparente 1=cuerpo 2=piel/cara 3=visor 4=borde/sombra
+    grid = [
+        [0,0,0,1,1,0,0,0],   # antena base
+        [0,0,1,1,1,1,0,0],   # cabeza top
+        [0,1,2,2,2,2,1,0],   # cara
+        [0,1,3,2,2,3,1,0],   # ojos
+        [0,1,2,2,2,2,1,0],   # cara bottom
+        [0,0,1,1,1,1,0,0],   # cuello
+        [0,1,1,1,1,1,1,0],   # hombros
+        [0,1,4,1,1,4,1,0],   # cuerpo
+        [0,0,1,0,0,1,0,0],   # piernas
+        [0,1,1,0,0,1,1,0],   # pies
+    ]
+    colores = {1: col_cuerpo, 2: col_piel, 3: col_visor, 4: col_borde}
+    _dibujar_pixel_art(grid, colores, ox, oy, ps)
+
+    # Escudo: borde brillante parpadeante
+    if tiene_escudo and (t // 200) % 2 == 0:
+        pygame.draw.rect(pantalla, BLANCO,
+                         (ox-1, oy-1, ancho_sprite+2, alto_sprite+2), 1)
+
+
+def _dibujar_enemigo(gx, gy):
+    """Sprite enemigo estilo fantasma — 8x9 pixels."""
+    ps  = max(2, (TAMANO_BLOQUE - 6) // 9)    # 9 filas de alto
+    ancho_sprite = ps * 8
+    alto_sprite  = ps * 9
+    ox = gx * TAMANO_BLOQUE + (TAMANO_BLOQUE - ancho_sprite) // 2
+    oy = gy * TAMANO_BLOQUE + ALTO_HUD + (TAMANO_BLOQUE - alto_sprite) // 2
+
+    # 0=transparente 1=cuerpo 2=ojo blanco 3=pupila 4=tentáculo
+    grid = [
+        [0,0,1,1,1,1,0,0],   # cabeza top
+        [0,1,1,1,1,1,1,0],   # cabeza
+        [1,1,2,1,1,2,1,1],   # ojos
+        [1,1,3,1,1,3,1,1],   # pupilas
+        [1,1,1,1,1,1,1,1],   # cuerpo
+        [1,1,1,1,1,1,1,1],   # cuerpo
+        [1,1,1,1,1,1,1,1],   # faldón
+        [1,0,1,0,0,1,0,1],   # tentáculos
+        [1,0,1,0,0,1,0,1],   # tentáculos
+    ]
+    colores = {1: ROJO_VIRUS, 2: BLANCO, 3: NEGRO, 4: (200,20,20)}
+    _dibujar_pixel_art(grid, colores, ox, oy, ps)
+
+
 def dibujar_juego(juego, t):
     dibujar_mapa(juego)
     # Explosiones
@@ -516,27 +585,14 @@ def dibujar_juego(juego, t):
         pygame.draw.rect(pantalla,GRIS_OSCURO,(b.x*TAMANO_BLOQUE,by,TAMANO_BLOQUE,bh))
         col_b = VERDE_BIT if restante>1500 else (AMARILLO_BOMBA if restante>800 else ROJO_VIRUS)
         pygame.draw.rect(pantalla,col_b,(b.x*TAMANO_BLOQUE,by,bw,bh))
-    # Enemigos
+    # Enemigos — sprite pixel art estilo fantasma (opción B)
     for e in juego.enemigos:
-        rx=e.x*TAMANO_BLOQUE+MARGEN_SPRITE; ry=e.y*TAMANO_BLOQUE+MARGEN_SPRITE+ALTO_HUD
-        r=pygame.Rect(rx,ry,TAM_SPRITE,TAM_SPRITE)
-        pygame.draw.rect(pantalla,ROJO_VIRUS,r,border_radius=TAMANO_BLOQUE//8)
-        ojo_y=r.top+TAM_SPRITE//3
-        for ox in [r.left+OJO_OFFSET, r.right-OJO_OFFSET]:
-            pygame.draw.circle(pantalla,BLANCO,(ox,ojo_y),OJO_RADIO)
-            pygame.draw.circle(pantalla,NEGRO,(ox,ojo_y),max(1,OJO_RADIO//2))
-    # Jugador
+        _dibujar_enemigo(e.x, e.y)
+    # Jugador — sprite pixel art estilo Bomberman (opción B)
     inv=t<juego.t_invinc; mostrar=not inv or (t//150)%2==0
     if mostrar and (juego.activo or juego.estado in ("nivel_claro","victoria")):
-        rx=juego.jugador_x*TAMANO_BLOQUE+MARGEN_SPRITE
-        ry=juego.jugador_y*TAMANO_BLOQUE+MARGEN_SPRITE+ALTO_HUD
-        r=pygame.Rect(rx,ry,TAM_SPRITE,TAM_SPRITE)
-        col_j = DORADO if juego.tiene_escudo else VERDE_BIT
-        pygame.draw.rect(pantalla,col_j,r,border_radius=TAMANO_BLOQUE//8)
-        if juego.tiene_escudo:
-            pygame.draw.rect(pantalla,BLANCO,r,2,border_radius=TAMANO_BLOQUE//8)
-        pygame.draw.line(pantalla,col_j,(r.centerx,r.top),(r.centerx,r.top-ANTENA_LARGO),2)
-        pygame.draw.circle(pantalla,CYAN,(r.centerx,r.top-ANTENA_LARGO-2),max(2,TAMANO_BLOQUE//18))
+        _dibujar_jugador(juego.jugador_x, juego.jugador_y,
+                         juego.tiene_escudo, t)
 
 
 def dibujar_overlay(linea1, linea2, color1=VERDE_BIT, linea3=""):
