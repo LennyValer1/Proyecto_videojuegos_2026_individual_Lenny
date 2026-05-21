@@ -227,7 +227,9 @@ class Juego:
         for e in self.enemigos:
             if t - e.ultimo_mov > e.vel:
                 nx, ny = e.x + e.direccion[0], e.y + e.direccion[1]
-                if 0 <= nx < COLUMNAS and 0 <= ny < FILAS and self.mapa[ny][nx] in (0, 3):
+                # ── CORRECCIÓN: los enemigos no pueden atravesar bombas ──
+                hay_bomba = any(b.x == nx and b.y == ny for b in self.bombas)
+                if 0 <= nx < COLUMNAS and 0 <= ny < FILAS and self.mapa[ny][nx] in (0, 3) and not hay_bomba:
                     e.x, e.y = nx, ny
                 else:
                     e.direccion = random.choice([(0,1),(0,-1),(1,0),(-1,0)])
