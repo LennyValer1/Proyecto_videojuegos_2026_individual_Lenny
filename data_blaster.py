@@ -154,58 +154,18 @@ try:
     SND_PUERTA    = _gen(540, 250, 0.4)
     SND_ITEM      = _gen(660, 200, 0.35)
 
-    # ── Música de fondo procedural ──────────────────────────────────────────
-    # Genera un loop de ~4 segundos con melodía chiptune + bajo
-    def _gen_musica():
-        import array as arr
-        sr    = 44100
-        bpm   = 140
-        beat  = int(sr * 60 / bpm)       # samples por beat
-        notas = [                         # frecuencias de la melodía (Hz)
-            220, 0, 277, 0, 330, 0, 220, 0,
-            277, 0, 370, 0, 330, 0,   0, 0,
-            220, 0, 247, 0, 294, 0, 370, 0,
-            330, 0, 294, 0, 220, 0,   0, 0,
-        ]
-        bajo  = [110, 0, 110, 0, 138, 0, 138, 0,
-                 147, 0, 147, 0, 110, 0,   0, 0,
-                 110, 0, 110, 0, 123, 0, 123, 0,
-                 138, 0, 138, 0, 110, 0,   0, 0]
-        total = beat * len(notas)
-        buf   = [0] * (total * 2)
-        per_cache = {}
-        for idx, (freq_m, freq_b) in enumerate(zip(notas, bajo)):
-            inicio = idx * beat
-            for i in range(beat):
-                env = max(0.0, 1.0 - i / beat)        # envelope
-                v = 0.0
-                if freq_m:
-                    if freq_m not in per_cache:
-                        per_cache[freq_m] = int(sr / freq_m)
-                    per = per_cache[freq_m]
-                    v += 0.18 * env * (1.0 if (i % per) < per//2 else -1.0)
-                if freq_b:
-                    if freq_b not in per_cache:
-                        per_cache[freq_b] = int(sr / freq_b)
-                    per = per_cache[freq_b]
-                    v += 0.10 * (1.0 if (i % per) < per//2 else -1.0)
-                v = max(-1.0, min(1.0, v))
-                s = int(v * 32767)
-                p = (inicio + i) * 2
-                buf[p]   = s
-                buf[p+1] = s
-        return pygame.sndarray.make_sound(
-            pygame.sndarray.array(arr.array("h", buf)))
+    # ── Música de fondo ─────────────────────────────────────────────────────
+    import os
+    _ruta_musica = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "mysterious_sewer_overture.mp3")
+    if os.path.exists(_ruta_musica):
+        pygame.mixer.set_num_channels(16)
+        pygame.mixer.music.load(_ruta_musica)
+        pygame.mixer.music.set_volume(0.35)
+        pygame.mixer.music.play(loops=-1)
 
-    MUSICA = _gen_musica()
-    # Aumentar canales disponibles y reservar el canal 0 solo para música
-    pygame.mixer.set_num_channels(16)
-    canal_musica = pygame.mixer.Channel(0)
-    canal_musica.set_volume(0.25)
-    canal_musica.play(MUSICA, loops=-1)
     SONIDO_OK = True
 except Exception:
-    MUSICA = None
     pass
 
 def play(snd):
