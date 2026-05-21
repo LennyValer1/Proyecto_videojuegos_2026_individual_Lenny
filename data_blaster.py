@@ -153,14 +153,77 @@ try:
     SND_VICTORIA  = _gen(480, 700, 0.4, decay=False)
     SND_PUERTA    = _gen(540, 250, 0.4)
     SND_ITEM      = _gen(660, 200, 0.35)
-    SONIDO_OK     = True
+
+    # ── Música de fondo procedural ──────────────────────────────────────────
+    # Genera un loop de ~4 segundos con melodía chiptune + bajo
+    def _gen_musica():
+        import array as arr
+        sr    = 44100
+        bpm   = 140
+        beat  = int(sr * 60 / bpm)       # samples por beat
+        notas = [                         # frecuencias de la melodía (Hz)
+            220, 0, 277, 0, 330, 0, 220, 0,
+            277, 0, 370, 0, 330, 0,   0, 0,
+            220, 0, 247, 0, 294, 0, 370, 0,
+            330, 0, 294, 0, 220, 0,   0, 0,
+        ]
+        bajo  = [110, 0, 110, 0, 138, 0, 138, 0,
+                 147, 0, 147, 0, 110, 0,   0, 0,
+                 110, 0, 110, 0, 123, 0, 123, 0,
+                 138, 0, 138, 0, 110, 0,   0, 0]
+        total = beat * len(notas)
+        buf   = [0] * (total * 2)
+        per_cache = {}
+        for idx, (freq_m, freq_b) in enumerate(zip(notas, bajo)):
+            inicio = idx * beat
+            for i in range(beat):
+                env = max(0.0, 1.0 - i / beat)        # envelope
+                v = 0.0
+                if freq_m:
+                    if freq_m not in per_cache:
+                        per_cache[freq_m] = int(sr / freq_m)
+                    per = per_cache[freq_m]
+                    v += 0.18 * env * (1.0 if (i % per) < per//2 else -1.0)
+                if freq_b:
+                    if freq_b not in per_cache:
+                        per_cache[freq_b] = int(sr / freq_b)
+                    per = per_cache[freq_b]
+                    v += 0.10 * (1.0 if (i % per) < per//2 else -1.0)
+                v = max(-1.0, min(1.0, v))
+                s = int(v * 32767)
+                p = (inicio + i) * 2
+                buf[p]   = s
+                buf[p+1] = s
+        return pygame.sndarray.make_sound(
+            pygame.sndarray.array(arr.array("h", buf)))
+
+    MUSICA = _gen_musica()
+    # Aumentar canales disponibles y reservar el canal 0 solo para música
+    pygame.mixer.set_num_channels(16)
+    canal_musica = pygame.mixer.Channel(0)
+    canal_musica.set_volume(0.25)
+    canal_musica.play(MUSICA, loops=-1)
+    SONIDO_OK = True
 except Exception:
+    MUSICA = None
     pass
 
 def play(snd):
     if SONIDO_OK and snd:
-        try: snd.play()
+        try:
+            # Buscar canal libre que no sea el 0 (reservado para música)
+            canal = pygame.mixer.find_channel()
+            if canal and canal.get_sound() != snd:
+                canal.play(snd)
         except: pass
+
+# Ranking de mejores puntajes de la sesión (máx 5)
+ranking_sesion = []
+
+def registrar_puntaje(pts):
+    global ranking_sesion
+    ranking_sesion.append(pts)
+    ranking_sesion = sorted(ranking_sesion, reverse=True)[:5]
 
 # ─── Entidades ────────────────────────────────────────────────────────────────
 class Bomba:
@@ -606,6 +669,85 @@ def dibujar_overlay(linea1, linea2, color1=VERDE_BIT, linea3=""):
         t3=fuente.render(linea3,True,CYAN)
         pantalla.blit(t3,t3.get_rect(center=(ANCHO//2,ALTO//2+50)))
 
+
+def dibujar_pantalla_fin(juego, t, es_victoria):
+    """Pantalla elaborada de fin de juego con ranking y estadísticas."""
+    # Fondo semitransparente
+    ov = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+    ov.fill((0, 0, 0, 210))
+    pantalla.blit(ov, (0, 0))
+
+    cy = ALTO // 2
+    color_titulo = CYAN if es_victoria else ROJO_VIRUS
+
+    # ── Título animado ──
+    titulo = "SISTEMA RESTAURADO" if es_victoria else juego.mensaje
+    pulso  = abs((t % 1000) - 500) / 500     # 0..1..0
+    escala_col = int(200 + 55 * pulso)
+    col_anim   = (0, escala_col, escala_col) if es_victoria else (escala_col, 50, 50)
+    t1 = fuente_g.render(titulo, True, col_anim)
+    pantalla.blit(t1, t1.get_rect(center=(ANCHO//2, cy - 130)))
+
+    # ── Subtítulo ──
+    sub_txt = "Todos los sectores depurados" if es_victoria else "El sistema ha sido comprometido"
+    t_sub = fuente.render(sub_txt, True, BLANCO)
+    pantalla.blit(t_sub, t_sub.get_rect(center=(ANCHO//2, cy - 88)))
+
+    # ── Panel de puntuación ──
+    ancho_panel = min(500, ANCHO - 80)
+    panel_x     = ANCHO//2 - ancho_panel//2
+    panel_y     = cy - 65
+    panel_h     = 90
+    pygame.draw.rect(pantalla, (15,15,15), (panel_x, panel_y, ancho_panel, panel_h), border_radius=8)
+    pygame.draw.rect(pantalla, color_titulo, (panel_x, panel_y, ancho_panel, panel_h), 1, border_radius=8)
+
+    t_pts_lbl = fuente.render("PUNTUACION FINAL", True, color_titulo)
+    pantalla.blit(t_pts_lbl, t_pts_lbl.get_rect(center=(ANCHO//2, panel_y + 22)))
+
+    t_pts_val = fuente_g.render(f"{juego.puntos:06d}", True, AMARILLO_BOMBA)
+    pantalla.blit(t_pts_val, t_pts_val.get_rect(center=(ANCHO//2, panel_y + 58)))
+
+    # ── Estadísticas de la partida ──
+    stats_y = panel_y + panel_h + 16
+    nivel_llegado = f"Sector {juego.nivel_idx + 1} de {len(NIVELES)}"
+    stats = [
+        (f"Nivel alcanzado: {nivel_llegado}", VERDE_BIT),
+        (f"Vidas restantes: {'■' * juego.vidas + '□' * (VIDAS_INICIALES - juego.vidas)}", ROJO_VIRUS),
+        (f"Power-ups: Bombas x{juego.max_bombas}  Rango {juego.radio_exp}  Vel+{juego.vel_jugador}", AZUL_ITEM),
+    ]
+    for txt, col in stats:
+        s = fuente.render(txt, True, col)
+        pantalla.blit(s, s.get_rect(center=(ANCHO//2, stats_y)))
+        stats_y += 26
+
+    # ── Ranking de sesión ──
+    rank_y = stats_y + 14
+    pygame.draw.line(pantalla, (60,60,60), (panel_x, rank_y), (panel_x+ancho_panel, rank_y), 1)
+    rank_y += 14
+
+    t_rank = fuente.render("MEJORES PUNTAJES DE LA SESION", True, AMARILLO_BOMBA)
+    pantalla.blit(t_rank, t_rank.get_rect(center=(ANCHO//2, rank_y)))
+    rank_y += 28
+
+    medallas = ["①", "②", "③", "④", "⑤"]
+    for i, pts in enumerate(ranking_sesion[:5]):
+        es_actual = (pts == juego.puntos and i == 0)
+        col_r     = AMARILLO_BOMBA if es_actual else BLANCO
+        prefijo   = medallas[i] if i < len(medallas) else f"{i+1}."
+        marca     = " ◄ TU" if es_actual else ""
+        txt_r     = fuente.render(f"  {prefijo}  {pts:06d}{marca}", True, col_r)
+        pantalla.blit(txt_r, txt_r.get_rect(center=(ANCHO//2, rank_y)))
+        rank_y += 24
+
+    if not ranking_sesion:
+        s = fuente.render("(sin partidas registradas aun)", True, (80,80,80))
+        pantalla.blit(s, s.get_rect(center=(ANCHO//2, rank_y)))
+
+    # ── Instrucción ──
+    if (t // 500) % 2 == 0:
+        s = fuente_m.render("Presiona R para volver al menu", True, CYAN)
+        pantalla.blit(s, s.get_rect(center=(ANCHO//2, ALTO - 45)))
+
 # ─── Menú ─────────────────────────────────────────────────────────────────────
 opcion_menu = 0   # 0 = ventana, 1 = pantalla completa
 
@@ -749,11 +891,15 @@ while True:
         dibujar_overlay("SECTOR LIMPIO", f"Puntuacion: {juego.puntos:06d}",
                         VERDE_BIT, "Presiona ENTER para continuar")
     elif juego.estado == "game_over":
-        dibujar_overlay(juego.mensaje, f"Puntuacion final: {juego.puntos:06d}",
-                        ROJO_VIRUS, "Presiona R para volver al menu")
+        if not getattr(juego, '_puntaje_registrado', False):
+            registrar_puntaje(juego.puntos)
+            juego._puntaje_registrado = True
+        dibujar_pantalla_fin(juego, t, es_victoria=False)
     elif juego.estado == "victoria":
-        dibujar_overlay("SISTEMA RESTAURADO", f"Puntuacion final: {juego.puntos:06d}",
-                        CYAN, "Presiona R para volver al menu")
+        if not getattr(juego, '_puntaje_registrado', False):
+            registrar_puntaje(juego.puntos)
+            juego._puntaje_registrado = True
+        dibujar_pantalla_fin(juego, t, es_victoria=True)
 
     presentar()
     reloj.tick(60)
