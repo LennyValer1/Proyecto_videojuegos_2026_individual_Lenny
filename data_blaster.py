@@ -7,11 +7,11 @@ pygame.mixer.init(frequency=22050, size=-16, channels=1, buffer=512)
 
 # ─── Constantes ───────────────────────────────────────────────────────────────
 
-TAMANO_BLOQUE = 40
+TAMANO_BLOQUE = 56
 COLUMNAS, FILAS = 15, 11
-ANCHO         = COLUMNAS * TAMANO_BLOQUE   # 600
-ALTO_HUD      = 50
-ALTO          = FILAS * TAMANO_BLOQUE + ALTO_HUD  # 490
+ANCHO         = COLUMNAS * TAMANO_BLOQUE   # 840
+ALTO_HUD      = 56
+ALTO          = FILAS * TAMANO_BLOQUE + ALTO_HUD  # 672
 
 RADIO_EXPLOSION    = 2
 TIEMPO_BOMBA_MS    = 3000
@@ -25,10 +25,10 @@ PUNTOS_NIVEL       = 500
 pantalla = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("Data Blaster")
 reloj    = pygame.time.Clock()
-fuente   = pygame.font.SysFont("consolas", 16, bold=True)
-fuente_m = pygame.font.SysFont("consolas", 22, bold=True)
-fuente_g = pygame.font.SysFont("consolas", 34, bold=True)
-fuente_t = pygame.font.SysFont("consolas", 48, bold=True)
+fuente   = pygame.font.SysFont("consolas", 20, bold=True)
+fuente_m = pygame.font.SysFont("consolas", 28, bold=True)
+fuente_g = pygame.font.SysFont("consolas", 42, bold=True)
+fuente_t = pygame.font.SysFont("consolas", 62, bold=True)
 
 # ─── Paleta de colores ────────────────────────────────────────────────────────
 
@@ -542,11 +542,12 @@ while True:
 
         if evento.type == pygame.KEYDOWN:
 
-            # ── Menú de inicio ──
+            # ── Menú de inicio — solo ENTER arranca, nada más ──
             if estado_app == "menu":
                 if evento.key == pygame.K_RETURN:
                     juego      = Juego()
                     estado_app = "jugando"
+                # cualquier otra tecla en el menú se ignora completamente
 
             # ── En partida ──
             elif estado_app == "jugando":
@@ -554,11 +555,14 @@ while True:
                 elif evento.key == pygame.K_DOWN:  juego.mover(0,  1)
                 elif evento.key == pygame.K_LEFT:  juego.mover(-1, 0)
                 elif evento.key == pygame.K_RIGHT: juego.mover( 1, 0)
-                elif evento.key == pygame.K_SPACE: juego.poner_bomba()
+                elif evento.key == pygame.K_SPACE:
+                    # solo poner bomba si el juego está activo, nunca cerrar
+                    if juego.estado == "jugando":
+                        juego.poner_bomba()
                 elif evento.key == pygame.K_RETURN and juego.estado == "nivel_claro":
                     juego.siguiente_nivel()
                 elif evento.key == pygame.K_r and juego.estado in ("game_over", "victoria"):
-                    estado_app = "menu"   # volver al menú al reiniciar
+                    estado_app = "menu"
 
     # ── Render ──
     if estado_app == "menu":
